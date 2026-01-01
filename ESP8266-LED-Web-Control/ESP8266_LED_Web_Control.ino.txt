@@ -1,0 +1,137 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+const char* ssid = "YOUR_WIFI_NAME";       // Replace with your Wi-Fi SSID
+const char* password = "YOUR_WIFI_PASSWORD"; // Replace with your Wi-Fi password
+
+ESP8266WebServer server(80);
+
+const int ledPin = D1; // GPIO5 (change if needed)
+
+// Serve main page
+void handleRoot() {
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP8266 LED Control</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    h1 {
+      margin-bottom: 50px;
+      color: #00ffff;
+      font-weight: 600;
+    }
+    .btn {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      margin: 20px;
+      transition: all 0.3s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0px 5px 15px rgba(0,0,0,0.3);
+    }
+    #onBtn { background-color: #28a745; color: #fff; }
+    #onBtn:hover { background-color: #1e7e34; }
+    #offBtn { background-color: #dc3545; color: #fff; }
+    #offBtn:hover { background-color: #a71d2a; }
+    i { pointer-events: none; }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <h1>ESP8266 LED Control</h1>
+  <div>
+    <button class="btn" id="onBtn" onclick="toggleLED('on')"><i class="fas fa-lightbulb"></i></button>
+    <button class="btn" id="offBtn" onclick="toggleLED('off')"><i class="fas fa-lightbulb"></i></button>
+  </div>
+
+  <script>
+    function toggleLED(state) {
+      fetch('/' + state)
+        .then(response => response.text())
+        .then(data => console.log(data));
+    }
+  </script>
+</body>
+</html>
+  )rawliteral";
+
+  server.send(200, "text/html", html);
+}
+
+// LED control
+void ledOn() {
+  digitalWrite(ledPin, HIGH);
+  server.send(200, "text/plain", "LED ON");
+}
+
+void ledOff() {
+  digitalWrite(ledPin, LOW);
+  server.send(200, "text/plain", "LED OFF");
+}
+
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+
+  Serial.begin(115200);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+
+  int attempt = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    attempt++;
+    if (attempt > 60) {
+      Serial.println("\nFailed to connect. Rebooting...");
+      ESP.restart();
+    }
+  }
+
+  Serial.println("\nConnected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  server.on("/", handleRoot);
+  server.on("/on", ledOn);
+  server.on("/off", ledOff);
+
+  server.begin();
+}
+
+void loop() {
+  if(WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi lost! Reconnecting...");
+    WiFi.begin(ssid, password);
+    int attempt = 0;
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+      attempt++;
+      if (attempt > 60) {
+        Serial.println("\nReconnect failed. Restarting...");
+        ESP.restart();
+      }
+    }
+    Serial.println("\nReconnected!");
+  }
+  server.handleClient();
+}
